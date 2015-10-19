@@ -6,7 +6,7 @@
 from monitoring import importdata
 import toolbox as tb
 import toolbox.util as tbu
-from voluptuous import Schema
+from voluptuous import Schema, Optional
 
 
 class ImportTool(tb.Tool):
@@ -19,6 +19,7 @@ class ImportTool(tb.Tool):
         'version': unicode,
         'date_format': unicode,
         'interval_snap': bool,
+        Optional('ir_block_length'): unicode,
         'mapping': {
             unicode: unicode
         },

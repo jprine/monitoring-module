@@ -147,7 +147,7 @@ def timeseries(config):
         importFile = os.path.join(config['folder'], fileName)
 
         with open(importFile) as f:
-            csvReader = csv.reader(f)
+            csvReader = csv.reader(f, skipinitialspace=True)
             for row in csvReader:
                 if len([cell for cell in row if cell in config['mapping']]) < 2:
                     # Not in header if less than 2 parameter headings found
@@ -155,6 +155,7 @@ def timeseries(config):
                 
                 # Parameter columns
                 paramCols = {}
+                param = None  #Initialize param so we know if we don't find it
                 for col, cell in enumerate(row):
                     try:
                         # Map cell onto param. Ignore non-ascii characters.
@@ -171,6 +172,7 @@ def timeseries(config):
             dateCol = timeCol = interval = startTime = None
             # Dict of {'param': [value1, values2, ...]}
             values = defaultdict(list)
+            times = []
             for row in csvReader:
                 # Find date and time columns
                 if dateCol is None or timeCol is None:
@@ -187,17 +189,18 @@ def timeseries(config):
                                 timeCol = col
                             except ValueError:
                                 pass
-                
+
                 # If date and time columns founds, we're on a data row
                 if dateCol >= 0 and timeCol >= 0:
+                    currentTime = tbu.parseDateTime(row[dateCol], row[timeCol], 
+                                                    config['date_format']).value()
+                    times.append(currentTime)
                     # First row gives start time
                     if startTime is None:
-                        startTime = tbu.parseDateTime(row[dateCol], row[timeCol], 
-                                                      config['date_format']).value()
+                        startTime = currentTime
                     # Second row gives interval
                     elif interval is None:
-                        interval = tbu.parseDateTime(row[dateCol], row[timeCol], 
-                                                     config['date_format']).value() - startTime
+                        interval = currentTime - startTime
                             
                     # In all rows we read all params
                     for param, col in paramCols.iteritems():
@@ -205,15 +208,23 @@ def timeseries(config):
                             values[param].append(float(row[col])) 
                         except ValueError:
                             values[param].append(Constants.UNDEFINED)
-
         # Check if interval matches number of row and end date/time
         endTime = tbu.parseDateTime(row[dateCol], row[timeCol], 
                                     config['date_format']).value()
-        if not endTime == startTime + interval * (len(values[param])-1):
-            raise ValueError("Import file {} does not appear to have a regular interval".format(importFile))
+        Nvals = len(values[param])
+        ir_block_length = None
+        if 'ir_block_length' in config:
+            # This could be checked in the schema
+            if config['ir_block_length'].upper() not in ['DAY', 'MONTH', 'YEAR', 'CENTURY']:
+                raise ValueError("ir_block_length is %s. It must be one of ['DAY', 'MONTH', 'YEAR', 'CENTURY']:",
+                                 config['ir_block_length'])
+            interval = -1
+            ir_block_length = 'IR-' + config['ir_block_length'].upper()
+        elif not endTime == startTime + interval * (Nvals-1):
+            raise ValueError("Import file {} does not appear to have a regular interval.".format(importFile))
         
         # Shift the times to match proper interval times
-        if config['interval_snap']:
+        elif config['interval_snap']:
             startTime = int(round(startTime / float(interval))) * interval
             
         for param in paramCols:
@@ -224,6 +235,8 @@ def timeseries(config):
                                 units=config['params'][param]['unit'], 
                                 startTime=startTime,
                                 interval=interval,
+                                ir_block_length=ir_block_length,
+                                times=times,
                                 values=values[param])
             records.append(record)
             

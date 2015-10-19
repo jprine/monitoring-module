@@ -1,10 +1,17 @@
 import collections
+import warnings
 
 
 class Record(object):
     def __init__(self, site="", location="", parameter="", version="",
-                 units="-", startTime=None, interval=-1, values=None, 
-                 qualities=None):
+                 units="-", startTime=None, interval=-1, ir_block_length=None,
+                 times=None, values=None, recordType="INST-VAL", qualities=None):
+        # Check interval and times - could improve message wording...
+        if interval == -1 and not times:
+            raise ValueError("Irregular times or an interval must be specified for record.")
+        if not interval == -1 and times:
+            warnings.warn("Both interval and times specified. Using interval and startTime")
+
         self.site = site.upper()
         self.location = location.upper()
         self.parameter = parameter.upper()
@@ -12,10 +19,12 @@ class Record(object):
         self.units = units
         self.startTime = startTime
         self.interval = interval
-        self.type = "INST-VAL"
+        self._times = times if interval == -1 else None
+        self.ir_block_length = ir_block_length
+        self.type = recordType
         self.values = values
         self.qualities = qualities
-    
+
     @property
     def origin(self):
         if len(self._values) == 1:
@@ -56,7 +65,14 @@ class Record(object):
     
     @property
     def times(self):
-        if len(self) > 1:
+        
+        if self._times:  # irregular time series
+            return self._times
+        elif len(self) > 1:
+            # Hrm... you could cache result to self._times here, but what if 
+            # startTime or interval changed.... the slight performance boost
+            # probably isn't worth the pain of the edge cases, especially
+            # consider times is only called a few times.
             return range(self.startTime, 
                          self.startTime + len(self) * self.interval, 
                          self.interval)
@@ -67,8 +83,14 @@ class Record(object):
         
     @property
     def intervalStr(self):
+        """Return interval name as a string.
+
+        Intervals are stored internally as integer minutes(?). This converts
+        the integer seconds to a string form for use by DSS.
+
+        """
         if self.interval == -1:
-            return "IR-YEAR"
+            return self.ir_block_length
         else:
             units = [
                 ('MIN', 60),
