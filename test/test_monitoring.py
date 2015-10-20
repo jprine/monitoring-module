@@ -70,6 +70,10 @@ class RecordTestCase(unittest.TestCase):
         r = mon.Record(interval=24*60*2)
         self.assertEqual(r.intervalStr, '2DAY')
 
+    def testIntervalStrIrregular(self):
+        r = mon.Record(ir_block_length='IR-MONTH')
+        self.assertEqual(r.intervalStr, 'IR-MONTH')
+
 
 if __name__ == '__main__':
     unittest.main()
