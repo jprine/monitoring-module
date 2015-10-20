@@ -69,7 +69,12 @@ class Tool(object):
             with codecs.open(self.configFilePath, encoding='utf-8') as configFile:
                 self.config = yaml.load(configFile.read())
             self._configIsValid()
-        
+
+            # Check for relative path in folder and conver to absolute if needed
+            if not path.isabs(self.config['folder']):
+                self.config['folder'] = path.join(path.dirname(self.configFilePath),
+                                                  self.config['folder'])
+
     def _toolIsValid(self):
         """
         Check if the tool is configured correctly with a valid config file and 
